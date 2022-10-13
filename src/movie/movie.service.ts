@@ -1,26 +1,59 @@
-import { Injectable } from '@nestjs/common';
-import { CreateMovieDto } from './dto/create-movie.dto';
-import { UpdateMovieDto } from './dto/update-movie.dto';
+import {
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+} from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { Movie } from './entities/movie.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { firstValueFrom } from 'rxjs';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class MovieService {
-  create(createMovieDto: CreateMovieDto) {
-    return 'This action adds a new movie';
+export class MovieService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(MovieService.name);
+
+  constructor(
+    private readonly httpService: HttpService,
+    @InjectRepository(Movie) private movieRepository: Repository<Movie>,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private async getPopularMovies() {
+    let url = `https://api.themoviedb.org/3/movie/popular?api_key=${this.configService.get(
+      'API_KEY',
+    )}&language=en-US&page=1`;
+    let response = firstValueFrom(await this.httpService.get(url));
+    let data: Array<Movie> = new Array<Movie>();
+    for await (const movie of (await response)?.data.results) {
+      let { genre_ids, id, ...movie_data } = movie;
+      data.push(movie_data);
+    }
+    this.logger.verbose("get popular movies")
+    return data;
   }
 
-  findAll() {
-    return `This action returns all movie`;
+  async onApplicationBootstrap() {
+    this.logger.log('MovieService onApplicationBootstrap');
+    let data = await this.getPopularMovies();
+    this.movieRepository.save(data);
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} movie`;
+  @Cron(CronExpression.EVERY_2_HOURS)
+  async getDataBySchedule() {
+    this.getPopularMovies();
   }
 
-  update(id: number, updateMovieDto: UpdateMovieDto) {
-    return `This action updates a #${id} movie`;
+  async findAll(amount: number = null) {
+    if (amount) {
+      return await this.movieRepository.find({ take: Number(amount) });
+    }
+    return await this.movieRepository.find();
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} movie`;
+  async findOne(id: number) {
+    return await this.movieRepository.findOne({ where: { id: id } });
   }
 }
