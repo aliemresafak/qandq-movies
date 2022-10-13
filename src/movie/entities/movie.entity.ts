@@ -1,8 +1,8 @@
-import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
 export class Movie {
-  @PrimaryColumn()
+  @PrimaryGeneratedColumn("increment")
   id:number
   @Column()
   adult: boolean;
@@ -14,7 +14,7 @@ export class Movie {
   original_title: string;
   @Column()
   overview: string;
-  @Column()
+  @Column({type: "decimal"})
   popularity: number;
   @Column()
   poster_path: string;
@@ -24,7 +24,7 @@ export class Movie {
   title: string;
   @Column()
   video: boolean;
-  @Column()
+  @Column({ type: "decimal", default: 0})
   vote_average: number;
   @Column()
   vote_count: number;
