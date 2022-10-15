@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnApplicationBootstrap,
-} from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { Movie } from './entities/movie.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +6,9 @@ import { Repository } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
+import { MovieInfoDto } from './dto/movie-info.dto';
+import { MovieInfo } from './entities/movie-info.entity';
+import { round } from 'src/utils';
 
 @Injectable()
 export class MovieService implements OnApplicationBootstrap {
@@ -18,6 +17,8 @@ export class MovieService implements OnApplicationBootstrap {
   constructor(
     private readonly httpService: HttpService,
     @InjectRepository(Movie) private movieRepository: Repository<Movie>,
+    @InjectRepository(MovieInfo)
+    private movieInfoRepository: Repository<MovieInfo>,
     private readonly configService: ConfigService,
   ) {}
 
@@ -31,7 +32,7 @@ export class MovieService implements OnApplicationBootstrap {
       let { genre_ids, id, ...movie_data } = movie;
       data.push(movie_data);
     }
-    this.logger.verbose("get popular movies")
+    this.logger.verbose('get popular movies');
     return data;
   }
 
@@ -54,6 +55,27 @@ export class MovieService implements OnApplicationBootstrap {
   }
 
   async findOne(id: number) {
-    return await this.movieRepository.findOne({ where: { id: id } });
+    const result = await this.movieInfoRepository
+      .createQueryBuilder('movie_info')
+      .select('SUM(movie_info.point)', 'totalPoint')
+      .addSelect('COUNT(*)', 'amountPoint')
+      .getRawOne();
+    let movie = await this.movieRepository.findOne({ where: { id } });
+    const { totalPoint, amountPoint } = result;
+    const totalPointFromData = Number(movie.vote_average) * movie.vote_count;
+    const newAmountVote = movie.vote_count + Number(amountPoint);
+    movie.vote_average = round(
+      (totalPointFromData + Number(totalPoint)) / newAmountVote,
+    );
+    movie.vote_count = newAmountVote;
+    return movie;
+  }
+
+  async addMovieInfo(id: number, movieInfoDto: MovieInfoDto) {
+    console.log('addMovieInfo services');
+    console.log(id, movieInfoDto);
+    let movieInfo = await this.movieInfoRepository.create(movieInfoDto);
+    await this.movieInfoRepository.save(movieInfo);
+    return movieInfo;
   }
 }

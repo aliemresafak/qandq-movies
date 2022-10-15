@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { MovieInfoDto } from './dto/movie-info.dto';
 import { MovieService } from './movie.service';
 
 @Controller('movie')
@@ -15,5 +16,10 @@ export class MovieController {
   findOne(@Param('id') id: number) {
     console.log(typeof id, id);
     return this.movieService.findOne(Number(id));
+  }
+  @Post(':id/movieinfo')
+  addMovieInfo(@Param('id') id: number, @Body() movieInfoDto: MovieInfoDto) {
+    console.log(id, movieInfoDto);
+    return this.movieService.addMovieInfo(id, movieInfoDto);
   }
 }
